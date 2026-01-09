@@ -1,8 +1,18 @@
+/** @description : import from https://github.com/kevinohara80/sfdc-trigger-framework*/
 public virtual class TriggerHandler {
 
   // static map of handlername, times run() was invoked
   private static Map<String, LoopCount> loopCountMap;
   private static Set<String> bypassedHandlers;
+
+  @TestVisible
+  private List<SObject> triggerNew;
+  @TestVisible
+  private Map<Id, SObject> triggerNewMap;
+  @TestVisible
+  private List<SObject> triggerOld;
+  @TestVisible
+  private Map<Id, SObject> triggerOldMap;
 
   // the current context of the trigger, overridable in tests
   @TestVisible
@@ -22,7 +32,10 @@ public virtual class TriggerHandler {
   public TriggerHandler() {
     this.setTriggerContext();
   }
-
+  public TriggerHandler(String handlerName) {
+    this.handlerName = handlerName;
+    this.setTriggerContext();
+  }
   /***************************************
    * public instance methods
    ***************************************/
@@ -37,37 +50,40 @@ public virtual class TriggerHandler {
     addToLoopCount();
 
     // dispatch to the correct handler method
-    switch on this.context {
-      when BEFORE_INSERT {
-        this.beforeInsert();
-      }
-      when BEFORE_UPDATE {
-        this.beforeUpdate();
-      }
-      when BEFORE_DELETE {
-        this.beforeDelete();
-      }
-      when AFTER_INSERT {
-        this.afterInsert();
-      }
-      when AFTER_UPDATE {
-        this.afterUpdate();
-      }
-      when AFTER_DELETE {
-        this.afterDelete();
-      }
-      when AFTER_UNDELETE {
-        this.afterUndelete();
-      }
+    // only one method should be implemented in the trigger handler (with parameters prefered for mocking capabilities)
+    if(this.context == TriggerContext.BEFORE_INSERT) {
+      this.beforeInsert();
+      this.beforeInsert(this.triggerNew);
+    } else if(this.context == TriggerContext.BEFORE_UPDATE) {
+      this.beforeUpdate();
+      this.beforeUpdate(this.triggerNewMap, this.triggerOldMap);
+    } else if(this.context == TriggerContext.BEFORE_DELETE) {
+      this.beforeDelete();
+      this.beforeDelete(this.triggerOldMap);
+    } else if(this.context == TriggerContext.AFTER_INSERT) {
+      this.afterInsert();
+      this.afterInsert(this.triggerNew);
+      this.afterInsert(this.triggerNewMap);
+    } else if(this.context == TriggerContext.AFTER_UPDATE) {
+      this.afterUpdate();
+      this.afterUpdate(this.triggerNewMap, this.triggerOldMap);
+    } else if(this.context == TriggerContext.AFTER_DELETE) {
+      this.afterDelete();
+      this.afterDelete(this.triggerOldMap);
+    } else if(this.context == TriggerContext.AFTER_UNDELETE) {
+      this.afterUndelete();
+      this.afterUndelete(this.triggerNewMap);
     }
   }
 
   public void setMaxLoopCount(Integer max) {
     String handlerName = getHandlerName();
-    if(!TriggerHandler.loopCountMap.containsKey(handlerName)) {
+    LoopCount loopCount = TriggerHandler.loopCountMap.get(handlerName);
+    if(handlerName == null){
       TriggerHandler.loopCountMap.put(handlerName, new LoopCount(max));
-    } else {
-      TriggerHandler.loopCountMap.get(handlerName).setMax(max);
+    }
+    else{
+      loopCount.setMax(max);
     }
   }
 
@@ -135,16 +151,24 @@ public virtual class TriggerHandler {
         (ctx != null && ctx == 'after undelete')) {
       this.context = TriggerContext.AFTER_UNDELETE;
     }
+
+    //store value in a local variables, then we will be able to mock triggerhandler
+    this.triggerNew = Trigger.new;
+    this.triggerNewMap = Trigger.newMap;
+    this.triggerOld = Trigger.old;
+    this.triggerOldMap = Trigger.oldMap;
   }
 
   // increment the loop count
   @TestVisible
   private void addToLoopCount() {
     String handlerName = getHandlerName();
-    if(TriggerHandler.loopCountMap.containsKey(handlerName)) {
-      Boolean exceeded = TriggerHandler.loopCountMap.get(handlerName).increment();
+
+    LoopCount loopCount = TriggerHandler.loopCountMap.get(handlerName);
+    if(loopCount != null) {
+      Boolean exceeded = loopCount.increment();
       if(exceeded) {
-        Integer max = TriggerHandler.loopCountMap.get(handlerName).max;
+        Integer max = loopCount.max;
         throw new TriggerHandlerException('Maximum loop count of ' + String.valueOf(max) + ' reached in ' + handlerName);
       }
     }
@@ -156,19 +180,26 @@ public virtual class TriggerHandler {
     if(!this.isTriggerExecuting || this.context == null) {
       throw new TriggerHandlerException('Trigger handler called outside of Trigger execution');
     }
+
     return !TriggerHandler.bypassedHandlers.contains(getHandlerName());
   }
 
   @TestVisible
   private String getHandlerName() {
-    return this.toString().substringBefore(':');
+    if(String.isBlank(this.handlerName)) {
+      this.handlerName = this.toString().substringBefore(':');
+    }
+    return handlerName;
   }
+  private String handlerName {get; set;}
 
   /***************************************
    * context methods
    ***************************************/
 
   // context-specific methods for override
+  //used for retro compatibility from the framework
+  //USE ONLY ONE IMPLEMENTATION in the trigger
   @TestVisible
   protected virtual void beforeInsert(){}
   @TestVisible
@@ -183,6 +214,24 @@ public virtual class TriggerHandler {
   protected virtual void afterDelete(){}
   @TestVisible
   protected virtual void afterUndelete(){}
+
+  //prefered method
+  @TestVisible
+  protected virtual void beforeInsert(List<SObject> triggerNew){}
+  @TestVisible
+  protected virtual void beforeUpdate(Map<Id,SObject> triggerNewMap, Map<Id,SObject> triggerOldMap){}
+  @TestVisible
+  protected virtual void beforeDelete(Map<Id,SObject> triggerNewMap){}
+  @TestVisible
+  protected virtual void afterInsert(List<SObject> triggerNew){}
+  @TestVisible
+  protected virtual void afterInsert(Map<Id,SObject> triggerNewMap){}
+  @TestVisible
+  protected virtual void afterUpdate(Map<Id,SObject> triggerNewMap, Map<Id,SObject> triggerOldMap){}
+  @TestVisible
+  protected virtual void afterDelete(Map<Id,SObject> triggerOldMap){}
+  @TestVisible
+  protected virtual void afterUndelete(Map<Id,SObject> triggerNewMap){}
 
   /***************************************
    * inner classes
