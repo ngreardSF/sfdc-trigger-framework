@@ -1,4 +1,6 @@
-/** @description : import from https://github.com/kevinohara80/sfdc-trigger-framework*/
+/**
+ * @description Trigger handler framework imported from https://github.com/kevinohara80/sfdc-trigger-framework
+ */
 public virtual class TriggerHandler {
 
   // static map of handlername, times run() was invoked
@@ -28,19 +30,27 @@ public virtual class TriggerHandler {
     bypassedHandlers = new Set<String>();
   }
   
-  // constructor
+  /**
+   * @description Default constructor
+   */
   public TriggerHandler() {
     this.setTriggerContext();
   }
+
+  /**
+   * @description Constructor with handler name
+   * @param handlerName Name of the handler
+   */
   public TriggerHandler(String handlerName) {
     this.handlerName = handlerName;
     this.setTriggerContext();
   }
+
   /***************************************
    * public instance methods
    ***************************************/
 
-  // main method that will be called during execution
+  /** @description Main method that will be called during execution */
   public void run() {
 
     if(!validateRun()) {
@@ -76,10 +86,13 @@ public virtual class TriggerHandler {
     }
   }
 
+  /** @description Sets the maximum loop count for the handler
+   * @param max Maximum number of times run() can be invoked
+   */
   public void setMaxLoopCount(Integer max) {
     String handlerName = getHandlerName();
     LoopCount loopCount = TriggerHandler.loopCountMap.get(handlerName);
-    if(handlerName == null){
+    if(loopCount == null){
       TriggerHandler.loopCountMap.put(handlerName, new LoopCount(max));
     }
     else{
@@ -87,6 +100,8 @@ public virtual class TriggerHandler {
     }
   }
 
+  /** @description Clears the maximum loop count for the handler
+   */
   public void clearMaxLoopCount() {
     this.setMaxLoopCount(-1);
   }
@@ -95,18 +110,29 @@ public virtual class TriggerHandler {
    * public static methods
    ***************************************/
 
+  /** @description Bypasses the specified handler
+   * @param handlerName Name of the handler to bypass
+   */
   public static void bypass(String handlerName) {
     TriggerHandler.bypassedHandlers.add(handlerName);
   }
 
+  /** @description Clears the bypass for the specified handler
+   * @param handlerName Name of the handler to clear bypass for
+   */
   public static void clearBypass(String handlerName) {
     TriggerHandler.bypassedHandlers.remove(handlerName);
   }
 
+  /** @description Returns whether the specified handler is bypassed
+   * @param handlerName Name of the handler to check
+   * @return True if the handler is bypassed, false otherwise
+   */
   public static Boolean isBypassed(String handlerName) {
     return TriggerHandler.bypassedHandlers.contains(handlerName);
   }
 
+  /** @description Clears all handler bypasses */
   public static void clearAllBypasses() {
     TriggerHandler.bypassedHandlers.clear();
   }
@@ -115,11 +141,16 @@ public virtual class TriggerHandler {
    * private instancemethods
    ***************************************/
 
+  /** @description Sets the trigger context from the current Trigger state */
   @TestVisible
   private void setTriggerContext() {
     this.setTriggerContext(null, false);
   }
 
+  /** @description Sets the trigger context, optionally for test mode
+   * @param ctx Trigger context string (e.g. 'before insert')
+   * @param testMode When true, allows execution outside of a running trigger
+   */
   @TestVisible
   private void setTriggerContext(String ctx, Boolean testMode) {
     if(!Trigger.isExecuting && !testMode) {
@@ -197,9 +228,7 @@ public virtual class TriggerHandler {
    * context methods
    ***************************************/
 
-  // context-specific methods for override
-  //used for retro compatibility from the framework
-  //USE ONLY ONE IMPLEMENTATION in the trigger
+  /** @description Context-specific methods for override. Use only one implementation in the trigger (parameterized versions preferred for mocking). */
   @TestVisible
   protected virtual void beforeInsert(){}
   @TestVisible
@@ -215,21 +244,46 @@ public virtual class TriggerHandler {
   @TestVisible
   protected virtual void afterUndelete(){}
 
-  //prefered method
+  /** @description Before insert handler with new records
+   * @param triggerNew List of new SObject records
+   */
   @TestVisible
   protected virtual void beforeInsert(List<SObject> triggerNew){}
+  /** @description Before update handler with new and old record maps
+   * @param triggerNewMap Map of new SObject records by Id
+   * @param triggerOldMap Map of old SObject records by Id
+   */
   @TestVisible
   protected virtual void beforeUpdate(Map<Id,SObject> triggerNewMap, Map<Id,SObject> triggerOldMap){}
+  /** @description Before delete handler with records to be deleted
+   * @param triggerNewMap Map of SObject records by Id (Trigger.oldMap in delete context)
+   */
   @TestVisible
   protected virtual void beforeDelete(Map<Id,SObject> triggerNewMap){}
+  /** @description After insert handler with new records
+   * @param triggerNew List of new SObject records
+   */
   @TestVisible
   protected virtual void afterInsert(List<SObject> triggerNew){}
+  /** @description After insert handler with new record map
+   * @param triggerNewMap Map of new SObject records by Id
+   */
   @TestVisible
   protected virtual void afterInsert(Map<Id,SObject> triggerNewMap){}
+  /** @description After update handler with new and old record maps
+   * @param triggerNewMap Map of new SObject records by Id
+   * @param triggerOldMap Map of old SObject records by Id
+   */
   @TestVisible
   protected virtual void afterUpdate(Map<Id,SObject> triggerNewMap, Map<Id,SObject> triggerOldMap){}
+  /** @description After delete handler with deleted records
+   * @param triggerOldMap Map of deleted SObject records by Id
+   */
   @TestVisible
   protected virtual void afterDelete(Map<Id,SObject> triggerOldMap){}
+  /** @description After undelete handler with recovered records
+   * @param triggerNewMap Map of recovered SObject records by Id
+   */
   @TestVisible
   protected virtual void afterUndelete(Map<Id,SObject> triggerNewMap){}
 
@@ -237,45 +291,64 @@ public virtual class TriggerHandler {
    * inner classes
    ***************************************/
 
-  // inner class for managing the loop count per handler
+  /** @description Inner class for managing the loop count per handler */
   @TestVisible
   private class LoopCount {
     private Integer max;
     private Integer count;
 
+    /** @description Default constructor */
     public LoopCount() {
       this.max = 5;
       this.count = 0;
     }
 
+    /** @description Constructor with maximum loop count
+     * @param max Maximum number of loop iterations allowed
+     */
     public LoopCount(Integer max) {
       this.max = max;
       this.count = 0;
     }
 
+    /** @description Increments the loop count
+     * @return True if the maximum count was exceeded
+     */
     public Boolean increment() {
       this.count++;
       return this.exceeded();
     }
 
+    /** @description Returns whether the maximum loop count has been exceeded
+     * @return True if the count exceeds the maximum
+     */
     public Boolean exceeded() {
       return this.max >= 0 && this.count > this.max;
     }
 
+    /** @description Returns the maximum loop count
+     * @return The maximum allowed loop count
+     */
     public Integer getMax() {
       return this.max;
     }
 
+    /** @description Returns the current loop count
+     * @return The current number of iterations
+     */
     public Integer getCount() {
       return this.count;
     }
 
+    /** @description Sets the maximum loop count
+     * @param max Maximum number of loop iterations allowed
+     */
     public void setMax(Integer max) {
       this.max = max;
     }
   }
 
-  // possible trigger contexts
+  /** @description Possible trigger contexts */
   @TestVisible
   private enum TriggerContext {
     BEFORE_INSERT, BEFORE_UPDATE, BEFORE_DELETE,
@@ -283,7 +356,6 @@ public virtual class TriggerHandler {
     AFTER_UNDELETE
   }
 
-  // exception class
+  /** @description Exception thrown by the trigger handler framework */
   public class TriggerHandlerException extends Exception {}
-
 }
